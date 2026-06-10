@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LDLT modified EAD risk score calculator</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-secondary: #f4f3ee;
+    --text-primary: #1f1f1d;
+    --text-secondary: #6f6e69;
+    --text-tertiary: #999791;
+    --border: rgba(31, 31, 29, 0.15);
+    --border-hover: rgba(31, 31, 29, 0.3);
+    --accent: #185fa5;
+    --accent-bg: #e6f1fb;
+    --accent-text: #0c447c;
+    --highlight: #a32d2d;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--text-primary);
+    margin: 0;
+    padding: 2rem 1rem;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 500;
+    margin: 0 0 0.5rem;
+  }
+  .subtitle {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 0 0 2rem;
+  }
+  .field-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: block;
+    margin-bottom: 6px;
+  }
+  .lobe-toggle {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 1.5rem;
+  }
+  .lobe-btn {
+    flex: 1;
+    padding: 10px 16px;
+    background: transparent;
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .lobe-btn:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-secondary);
+  }
+  .lobe-btn.active {
+    background: var(--accent-bg);
+    color: var(--accent-text);
+    border-color: var(--accent);
+  }
+  .input-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+  input[type="number"] {
+    width: 100%;
+    height: 40px;
+    padding: 0 12px;
+    background: var(--bg);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 15px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  input[type="number"]:hover { border-color: var(--border-hover); }
+  input[type="number"]:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-bg);
+  }
+  .results {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+  .result-card {
+    background: var(--bg-secondary);
+    padding: 1rem 1.25rem;
+    border-radius: var(--radius-md);
+  }
+  .result-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+  }
+  .result-value {
+    font-size: 26px;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+  .chart-wrap {
+    background: var(--bg);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  svg { display: block; width: 100%; height: auto; }
+  .footnote {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    line-height: 1.6;
+    border-top: 0.5px solid var(--border);
+    padding-top: 1rem;
+  }
+  .footnote p { margin: 0 0 0.5rem; }
+  .footnote p:last-child { margin: 0; }
+  @media (max-width: 480px) {
+    .input-grid, .results { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>LDLT modified EAD risk score calculator</h1>
+  <p class="subtitle">Lobe-specific preoperative risk prediction for modified early allograft dysfunction following living-donor liver transplantation</p>
+
+  <div>
+    <span class="field-label">Graft type</span>
+    <div class="lobe-toggle">
+      <button id="btn-right" class="lobe-btn" onclick="selectLobe('right')">Right lobe</button>
+      <button id="btn-left" class="lobe-btn" onclick="selectLobe('left')">Left lobe</button>
+    </div>
+  </div>
+
+  <div id="inputs-right">
+    <div class="input-grid">
+      <div>
+        <label class="field-label" for="meld">MELD at transplant</label>
+        <input type="number" id="meld" value="20" min="6" max="40" step="1" />
+      </div>
+      <div>
+        <label class="field-label" for="gvsv">Predicted GVSV ratio</label>
+        <input type="number" id="gvsv" value="1.0" min="0.1" max="6" step="0.01" />
+      </div>
+    </div>
+  </div>
+
+  <div id="inputs-left" style="display: none;">
+    <div class="input-grid">
+      <div>
+        <label class="field-label" for="bili">Bilirubin at transplant (mg/dL)</label>
+        <input type="number" id="bili" value="3.0" min="0.1" max="30" step="0.1" />
+      </div>
+      <div>
+        <label class="field-label" for="bmi">Donor BMI (kg/m²)</label>
+        <input type="number" id="bmi" value="25" min="15" max="40" step="0.1" />
+      </div>
+    </div>
+  </div>
+
+  <div class="results">
+    <div class="result-card">
+      <div class="result-label">Risk score</div>
+      <div class="result-value" id="score-out">--</div>
+    </div>
+    <div class="result-card">
+      <div class="result-label">Predicted mEAD risk</div>
+      <div class="result-value" id="prob-out">--</div>
+    </div>
+  </div>
+
+  <div class="chart-wrap">
+    <svg id="chart" viewBox="0 0 680 340"></svg>
+  </div>
+
+  <div class="footnote">
+    <p><strong>Right lobe score:</strong> 12 + 2(MELD) &minus; 4(GVSV ratio). <strong>Left lobe score:</strong> &minus;18 + 2(bilirubin in mg/dL) + 1(donor BMI).</p>
+    <p>Risk scores derived from internal validation of lobe-specific multivariable logistic regression in a combined cohort of 509 LDLT recipients (A2ALL + UCSF). Right lobe: AUC 0.73 (95% CI 0.67&ndash;0.79). Left lobe: AUC 0.72 (95% CI 0.61&ndash;0.84).</p>
+    <p>For research and educational use only. Not a substitute for clinical judgement.</p>
+  </div>
+</div>
+
+<script>
+const COEFS = {
+  right: {
+    b0: -4.023, b1: 0.0700,
+    maxScore: 130,
+    formula: (meld, gvsv) => Math.round(2*meld - 4*gvsv + 12)
+  },
+  left: {
+    b0: -2.821, b1: 0.117,
+    maxScore: 100,
+    formula: (bili, bmi) => Math.round(2*bili + bmi - 18)
+  }
+};
+
+let currentLobe = 'right';
+
+function selectLobe(lobe) {
+  currentLobe = lobe;
+  document.getElementById('inputs-right').style.display = lobe === 'right' ? 'block' : 'none';
+  document.getElementById('inputs-left').style.display = lobe === 'left' ? 'block' : 'none';
+  document.getElementById('btn-right').classList.toggle('active', lobe === 'right');
+  document.getElementById('btn-left').classList.toggle('active', lobe === 'left');
+  updateCalculator();
+}
+
+function updateCalculator() {
+  let score;
+  if (currentLobe === 'right') {
+    const meld = +document.getElementById('meld').value || 0;
+    const gvsv = +document.getElementById('gvsv').value || 0;
+    score = COEFS.right.formula(meld, gvsv);
+  } else {
+    const bili = +document.getElementById('bili').value || 0;
+    const bmi = +document.getElementById('bmi').value || 0;
+    score = COEFS.left.formula(bili, bmi);
+  }
+  const c = COEFS[currentLobe];
+  const lp = c.b0 + c.b1 * score;
+  const prob = 100 * Math.exp(lp) / (1 + Math.exp(lp));
+  document.getElementById('score-out').textContent = score;
+  document.getElementById('prob-out').textContent = Math.round(prob) + '%';
+  drawChart(score, prob);
+}
+
+function drawChart(currentScore, currentProb) {
+  const svg = document.getElementById('chart');
+  const c = COEFS[currentLobe];
+  const W = 680, H = 340;
+  const padL = 55, padR = 20, padT = 20, padB = 50;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+  const xToPx = x => padL + (x / c.maxScore) * plotW;
+  const yToPx = y => padT + plotH - (y / 100) * plotH;
+
+  let path = '';
+  for (let s = 0; s <= c.maxScore; s++) {
+    const lp = c.b0 + c.b1 * s;
+    const p = 100 * Math.exp(lp) / (1 + Math.exp(lp));
+    path += (s === 0 ? 'M' : 'L') + xToPx(s) + ',' + yToPx(p) + ' ';
+  }
+
+  let xTicks = '';
+  const xStep = c.maxScore / 10;
+  for (let i = 0; i <= 10; i++) {
+    const xVal = i * xStep;
+    const x = xToPx(xVal);
+    xTicks += '<line x1="' + x + '" y1="' + (padT + plotH) + '" x2="' + x + '" y2="' + (padT + plotH + 4) + '" stroke="#cccac4" stroke-width="1"/>';
+    xTicks += '<text x="' + x + '" y="' + (padT + plotH + 18) + '" text-anchor="middle" font-size="11" fill="#6f6e69">' + Math.round(xVal) + '</text>';
+  }
+
+  let yTicks = '';
+  for (let i = 0; i <= 10; i++) {
+    const y = yToPx(i * 10);
+    yTicks += '<line x1="' + (padL - 4) + '" y1="' + y + '" x2="' + padL + '" y2="' + y + '" stroke="#cccac4" stroke-width="1"/>';
+    yTicks += '<text x="' + (padL - 8) + '" y="' + (y + 4) + '" text-anchor="end" font-size="11" fill="#6f6e69">' + (i * 10) + '</text>';
+  }
+
+  const clampedScore = Math.min(Math.max(currentScore, 0), c.maxScore);
+  const dotX = xToPx(clampedScore);
+  const dotY = yToPx(currentProb);
+
+  svg.innerHTML =
+    '<line x1="' + padL + '" y1="' + padT + '" x2="' + padL + '" y2="' + (padT + plotH) + '" stroke="#cccac4" stroke-width="1"/>' +
+    '<line x1="' + padL + '" y1="' + (padT + plotH) + '" x2="' + (padL + plotW) + '" y2="' + (padT + plotH) + '" stroke="#cccac4" stroke-width="1"/>' +
+    xTicks + yTicks +
+    '<path d="' + path + '" stroke="#185fa5" stroke-width="2" fill="none"/>' +
+    '<line x1="' + dotX + '" y1="' + (padT + plotH) + '" x2="' + dotX + '" y2="' + dotY + '" stroke="#a32d2d" stroke-width="1" stroke-dasharray="3,3"/>' +
+    '<line x1="' + padL + '" y1="' + dotY + '" x2="' + dotX + '" y2="' + dotY + '" stroke="#a32d2d" stroke-width="1" stroke-dasharray="3,3"/>' +
+    '<circle cx="' + dotX + '" cy="' + dotY + '" r="6" fill="#a32d2d"/>' +
+    '<text x="' + (padL + plotW/2) + '" y="' + (H - 8) + '" text-anchor="middle" font-size="13" fill="#1f1f1d">Calculated risk score</text>' +
+    '<text x="16" y="' + (padT + plotH/2) + '" text-anchor="middle" font-size="13" fill="#1f1f1d" transform="rotate(-90, 16, ' + (padT + plotH/2) + ')">Predicted probability of mEAD (%)</text>';
+}
+
+['meld', 'gvsv', 'bili', 'bmi'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', updateCalculator);
+});
+selectLobe('right');
+</script>
+</body>
+</html>
